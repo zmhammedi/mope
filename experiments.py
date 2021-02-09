@@ -176,7 +176,10 @@ def bet_iqp(data, wmin, wmax, alpha):
     lb, ub = wealth_lb_2d_individual_qps(data, wmin, wmax, alpha)
     return np.array(lb), np.array(ub)
 
-
+# Copied from
+# https://github.com/pmineiro/elfcb
+# Why not import it? I modified some code in asymptoticconfidenceinterval below
+# TODO: send a PR.
 def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=False):
     import numpy as np
     from scipy.optimize import brentq
@@ -276,7 +279,10 @@ def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=Fal
            }
 
 
-# See ci.ipynb for derivation, implementation notes, and test
+# Copied from
+# https://github.com/pmineiro/elfcb/blob/d0daf9e634b2382001f9b336a715e35fa2fd8619/MLE/MLE/asymptoticconfidenceinterval.py
+# NB: that was the git HEAD when I copied it
+# NB: a small modification was done to avoid numerical issues with scipy.stats.f.isf when dfd > 23000
 def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
                                  rmin=0, rmax=1, raiseonerr=False):
     from scipy.special import xlogy
@@ -550,21 +556,14 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
     return (retvals[0][0], retvals[1][0]), (retvals[0][1], retvals[1][1])
 
 
-def asym_ci(data, wmin, wmax, alpha):
-    cd = compress(data)
-    (lb, ub), (_, _) = asymptoticconfidenceinterval(lambda: cd, wmin=wmin, wmax=wmax, alpha=alpha, rmin=0, rmax=1)
-    return lb, ub
-
-
-def asym_cs_union(data, wmin, wmax, alpha, adjust=True):
+def pointwise_asym_ci(data, wmin, wmax, alpha):
     n = len(data)
     grid = np.round(np.geomspace(1, n)).astype(np.int32)
     lbs = []
     ubs = []
     for t in grid:
         cd = compress(data[:t])
-        adjusted_alpha = alpha/(t*(t+1.0)) if adjust else alpha
-        (lb, ub), (_, _) = asymptoticconfidenceinterval(lambda: cd, wmin=wmin, wmax=wmax, alpha=adjusted_alpha, rmin=0, rmax=1)
+        (lb, ub), (_, _) = asymptoticconfidenceinterval(lambda: cd, wmin=wmin, wmax=wmax, alpha=alpha, rmin=0, rmax=1)
         lbs.append(lb)
         ubs.append(ub)
     t = 1+np.arange(n)
