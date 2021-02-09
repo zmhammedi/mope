@@ -597,12 +597,6 @@ def plotit(d, title, ax=None):
         columns.append(k)
         values.append(d[k])
     values = np.stack(values, axis=1)
-    #ours = res2d[1]['width']
-    #notconbo = resiqp[1]['width']
-    #not2d = res1d[1]['width']
-    #notbound = reslog[1]['width']
-    #values = np.stack((ours, notconbo, not2d, notbound), axis=1)
-    #data = pd.DataFrame(values, columns=["Ours", "- 'conbo'", "- 2d", "- bound"])
     data = pd.DataFrame(values, columns=columns)
     if ax is None:
         fig, ax = plt.subplots()
@@ -625,7 +619,3 @@ def width_experiment(n, wsq, tv):
     resiqp = evaluate(f'widthiqp_{wsq}_{tv}.pkl', bet_iqp, alpha=0.05, ndata=n, reps=5, wsq=wsq, tv=tv)
 
 
-#env, pw, rng, ewsq = getenv(10)
-#tv, data = env.sample(100)
-#print(len(data))
-#print(compress(data))
