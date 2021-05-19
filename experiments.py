@@ -1,7 +1,8 @@
 import environments.ControlledRangeVariance
 from opebet import wealth_lb_1d, wealth_lb_2d, wealth_2d, wealth_lb_2d_individual_qps
+from cs_via_supermartingale import cs_via_supermartingale, cs_via_EWA, cs_via_EWA_debug, cs_via_EWA_debug_slow, cs_via_supermartingale_debug
 import pickle
-import numpy as np
+import numpy as np 
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
@@ -572,7 +573,6 @@ def pointwise_asym_ci(data, wmin, wmax, alpha):
     return lb, ub
 
 
-
 def evaluate(name, method, alpha, ndata, reps, wsq, tv=None):
     env, _, _, _ = getenv(wsq, tv)
     z = produce_results(env, method, alpha, ndata, reps)
@@ -605,17 +605,15 @@ def plotit(d, title, ax=None):
     ax.legend(loc='lower left')
     return ax
 
-
 def coverage_experiment():
     res2d = evaluate('cov2d.pkl', bet_2d, alpha=0.05, ndata=100000, reps=1000, wsq=10)
     res1d = evaluate('cov1d.pkl', bet_1d, alpha=0.05, ndata=100000, reps=1000, wsq=10)
     return res2d, res1d
 
-
 def width_experiment(n, wsq, tv):
     res1d = evaluate(f'width1d_{wsq}_{tv}.pkl', bet_1d, alpha=0.05, ndata=n, reps=20, wsq=wsq, tv=tv)
     res2d = evaluate(f'width2d_{wsq}_{tv}.pkl', bet_2d, alpha=0.05, ndata=n, reps=20, wsq=wsq, tv=tv)
-    reslog = evaluate(f'widthlog_{wsq}_{tv}.pkl', bet_log, alpha=0.05, ndata=n, reps=5, wsq=wsq, tv=tv)
-    resiqp = evaluate(f'widthiqp_{wsq}_{tv}.pkl', bet_iqp, alpha=0.05, ndata=n, reps=5, wsq=wsq, tv=tv)
+    #reslog = evaluate(f'widthlog_{wsq}_{tv}.pkl', bet_log, alpha=0.05, ndata=n, reps=5, wsq=wsq, tv=tv)
+    #resiqp = evaluate(f'widthiqp_{wsq}_{tv}.pkl', bet_iqp, alpha=0.05, ndata=n, reps=5, wsq=wsq, tv=tv)
 
 
