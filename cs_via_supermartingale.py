@@ -146,6 +146,74 @@ def supermartingale_value(v,wmax,b0,b1,A0,A1,A2):
         
     return optval
 
+def supermartingale_value_1d(v,wmax,b0,b1,A0,A1,A2):
+    # This function is an efficient version of martingal_value. We avoid calling a solver, and consider cases instead.
+    mu = 100
+    alpha = 2 # also a free parameter that need be no less than 1. TODO change the name
+    
+    gammasols = [np.zeros(3)] # Adding the all zeros feasable solution
+    
+    # Building S and Q matrices from the sufficient statistics
+    S = b0 + b1 * v
+    Q = A0 + A1 * v + A2*v**2 
+    Sigmainv = pow(mu,-2) * alpha  + alpha*Q
+    Sigma =1/Sigmainv 
+    Den = np.sqrt(1 + pow(mu,2)*Q)
+
+    ## Considering cases
+    
+    # Case 1: (gamma_1,gamma_2) = (0,0)
+    gamma = np.zeros(3)
+    Cv = wmax-v
+    
+    adding=False
+    den = Cv * Sigma * Cv
+    if den != 0:
+        adding=True
+    gamma[2]=(-rho(alpha) - Cv * Sigma * S)/den
+    if adding and gamma[2]>=0: 
+        gammasols.append(gamma)
+        
+    
+    # Case 2: (gamma_1,gamma_3) = (0,0)
+    gamma = np.zeros(3)
+    Cv = -v
+    
+    adding=False
+    den = Cv * Sigma * Cv
+    if den != 0:
+        adding=True
+    gamma[1]=(-rho(alpha) - Cv * Sigma * S)/den
+    if adding and gamma[1]>=0: 
+        gammasols.append(gamma)
+        
+    # Case 3: (gamma_2,gamma_3) = (0,0)
+    gamma = np.zeros(3)
+    Cv = -v
+    
+    adding=False
+    den = Cv * Sigma * Cv
+    if den != 0:
+        adding=True
+    gamma[0]=(-rho(alpha) - Cv * Sigma * S)/den
+    if adding and gamma[0]>=0: 
+        gammasols.append(gamma)
+        
+    
+    ## Checking the best solution
+    J = np.array([1,1,1])
+    Cv = np.array([-v,-v,wmax-v])
+
+    optval = -1
+    for gamma in gammasols:
+        Stilde = S + Cv @ gamma
+        arg = min(20,Stilde * Sigma * Stilde/2 + rho(alpha)*gamma.T @ J)
+        val =  np.exp(arg)/Den
+        if optval<0 or optval>val:
+            optval=val
+        
+    return optval
+
 
 def martingale_value_lowerbound(v,wmax,b0,b1,A0,A1,A2,t):  
     eps = 0.001
@@ -158,7 +226,7 @@ def martingale_value_lowerbound(v,wmax,b0,b1,A0,A1,A2,t):
     S = b0 + b1 * v
     Q = A0 + A1 * v + A2*v**2 
     Sigmainv = eps * I + Q
-    Sigma = np.linalg.inv(Sigmainv) 
+    Sigma = np.linalg.inv(Sigmainv) # TODO consider Sherman Morison
     Den = 1 #(np.exp(1)*t+np.exp(1))
 
     ## Considering cases
@@ -371,6 +439,44 @@ def cs_via_supermartingale_debug(data, wmin, wmax, alpha):
     ub = bisection_algorithm(martval,tmpv,1,1/alpha,margin=0.000001)
     #print(f'tmpv not eq 1: lb={lb}, up={ub}\n')    
     return np.array([float(lb)] * T), np.array([float(ub)] * T)
+
+
+def cs_via_supermartingale_1d_debug(data, wmin, wmax, alpha):
+    # Assume data is of type np.array((t,2)), where (w,r)=(wr[:,0],wr[:,1]).
+    # TODO we want to allow for different policies eventually
+    T = len(data)
+    
+    # Initialize
+    b0 = np.zeros(2)
+    b1 = np.zeros(2)
+    A0 = np.zeros((2,2))
+    A1 = np.zeros((2,2))
+    A2 = np.zeros((2,2))
+
+    w = data[:,0] 
+    r = data[:,1]
+    b0 = np.dot(w,r)
+    b1 = -T
+    A0 = np.dot(w*r, w*r)
+    A1 = -2 * np.dot(w,r)
+    A2 = T
+    #print(f'b0={b0},\nb1={b1},\nA0={A0},\nA1={A1},\nA2={A2}\n\n')
+    
+    martval = lambda v: supermartingale_value_1d(v,wmax,b0,b1,A0,A1,A2)        
+    # Root finding
+    tmpv, found = linear_search(martval,0,1,1/(2 * alpha),step=0.001)
+    #print(tmpv)
+    #tmpv = bisection_algorithm(martval,0,1,1/(2 * alpha),margin=0.000001)
+    if not found:
+        #print(f'b0={b0},\nb1={b1},\nA0={A0},\nA1={A1},\nA2={A2}\n\n')
+        #print('tmpv=0')
+        return np.array([0.] * T), np.array([1.] * T)
+
+    lb = bisection_algorithm(martval,0,tmpv,1/alpha,margin=0.000001,direction="left")
+    ub = bisection_algorithm(martval,tmpv,1,1/alpha,margin=0.000001)
+    #print(f'tmpv not eq 1: lb={lb}, up={ub}\n')    
+    return np.array([float(lb)] * T), np.array([float(ub)] * T)
+
 
 def cs_via_EWA(data, wmin, wmax, alpha):
     # Assume data is of type np.array((t,2)), where (w,r)=(wr[:,0],wr[:,1]).
