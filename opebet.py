@@ -218,6 +218,96 @@ def wealth_lb_2d(wr, wmin, wmax, alpha):
     return lb, ub
 
 
+def norm(x):
+    return np.sqrt(np.dot(x,x))
+
+
+def project_bet(bet, wmax):
+    scales = []
+    vecs = [np.array([-1,-1]),
+            np.array([-1,0]),
+            np.array([wmax-1,-1]),
+            np.array([wmax-1,0]),
+            np.array([wmax-1,wmax-1]),
+            np.array([wmax-1,wmax])]
+    for v in vecs:
+        p = np.dot(v, bet)
+        if p < -0.5:
+            scales.append(abs(p))
+    
+    if len(scales)>0:
+        pmax = max(scales)
+        assert (pmax>0), "p less than zero"
+        bet /= (2 * pmax) 
+    
+    
+def update_wealth_freegrad(wealth, bet, vs, w, r):
+    wealth += (bet[0]* (w -1) +  bet[1] * (w *r - vs)) * wealth
+    
+        
+def wealth_lb_2d_freegrad(wr, wmin, wmax, alpha):
+    vmin = 0
+    vmax = 0
+    lb = []
+    ub = []
+    vs = np.linspace(0, 1, 1000)
+    long_bet = np.zeros(2)
+    short_bet = np.zeros(2)
+    neg_log_alpha = np.log(1 / alpha)
+    
+    ## FreeGrad vars
+    wealth_long_arr = 0.5 * np.ones(len(vs))
+    wealth_short_arr = 0.5 * np.ones(len(vs))
+    wealth_long = .5 
+    wealth_short = .5 
+    G_long = np.zeros(2)
+    G_short = np.zeros(2)
+    V_long = 1
+    V_short = 1
+    h = np.sqrt(2) * max(1,(wmax-1))
+    for t, (wi, ri) in enumerate(wr):
+        # update the wealths
+        update_wealth_freegrad(wealth_long_arr, long_bet, vs, wi, ri)
+        update_wealth_freegrad(wealth_short_arr, short_bet, vs, wi, 1-ri)
+        assert (min(wealth_long_arr) >= 0),"negative wealth"
+        assert (min(wealth_short_arr) >= 0),"negative wealth"
+        
+        newvmin = update_lb_2d(np.log(wealth_long_arr), vs, neg_log_alpha)
+        newvmax = update_lb_2d(np.log(wealth_short_arr), vs, neg_log_alpha)
+        vmin = min(1-vmax,max(vmin, newvmin))
+        vmax = min(1-vmin,max(vmax, newvmax))
+        lb.append(vmin)
+        ub.append(1 - vmax)
+        
+        # FreeGrad Vars
+        g_long = -np.array([wi -1, wi * ri-vmin])
+        g_short = -np.array([wi -1, wi * (1-ri)-(1-vmax)])
+        G_long += g_long
+        norm_G_long = norm(G_long)
+        G_short += g_short
+        norm_G_short = norm(G_short)
+        V_long += np.dot(g_long,g_long)
+        V_short += np.dot(g_short,g_short)
+        
+        FG_long = - G_long * h**2 *(2*V_long+h*norm_G_long)/(2*(V_long+h*norm_G_long)**2 * np.sqrt(V_long))\
+            * np.exp(norm_G_long**2/(2 *V_long + 2 * h * norm_G_long))
+        FG_short = - G_short * h**2 *(2*V_short+h*norm_G_short)/(2*(V_short+h*norm_G_short)**2 * np.sqrt(V_short))\
+            * np.exp(norm_G_short**2/(2 *V_short + 2 * h * norm_G_short))
+        long_bet = FG_long/wealth_long
+        short_bet = FG_short/wealth_short
+        
+        project_bet(long_bet, wmax)
+        project_bet(short_bet, wmax)
+        
+        # Update the freegrad wealth 
+        assert (-np.dot(long_bet, g_long)>=-0.5), "less than 0.5"
+        assert (-np.dot(short_bet, g_short)>=-0.5), "less than 0.5"
+        wealth_long -= np.dot(long_bet, g_long) * wealth_long
+        wealth_short -= np.dot(short_bet, g_short) * wealth_short
+        
+    return lb, ub
+
+
 @njit
 def multi_update_wealth(log_wealth, bets, vs, wi, ri):
     log_wealth += np.log1p(bets[:,0] * (wi - 1) + bets[:,1] * (wi * ri - vs))

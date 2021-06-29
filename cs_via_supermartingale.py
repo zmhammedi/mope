@@ -1,5 +1,4 @@
 import numpy as np
-import cvxpy as cp
 import time
 
 def rho(x):
@@ -35,6 +34,7 @@ def linear_search(f, a, b, y, step=.01):
     if f(min(s,b))<=y:
         found=True
     return min(s,b), found
+
 
 
 def supermartingale_value(v,wmax,b0,b1,A0,A1,A2):
@@ -103,7 +103,6 @@ def supermartingale_value(v,wmax,b0,b1,A0,A1,A2):
     if adding and gamma[2]>=0: 
         gammasols.append(gamma)
         
-    
     # Case 5: (gamma_1,gamma_3) = (0,0)
     gamma = np.zeros(3)
     Cv = np.array([[wmax-1],
@@ -146,6 +145,7 @@ def supermartingale_value(v,wmax,b0,b1,A0,A1,A2):
         
     return optval
 
+
 def supermartingale_value_1d(v,wmax,b0,b1,A0,A1,A2):
     # This function is an efficient version of martingal_value. We avoid calling a solver, and consider cases instead.
     mu = 100
@@ -173,7 +173,6 @@ def supermartingale_value_1d(v,wmax,b0,b1,A0,A1,A2):
     gamma[2]=(-rho(alpha) - Cv * Sigma * S)/den
     if adding and gamma[2]>=0: 
         gammasols.append(gamma)
-        
     
     # Case 2: (gamma_1,gamma_3) = (0,0)
     gamma = np.zeros(3)

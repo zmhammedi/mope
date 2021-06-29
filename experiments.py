@@ -1,5 +1,5 @@
 import environments.ControlledRangeVariance
-from opebet import wealth_lb_1d, wealth_lb_2d, wealth_2d, wealth_lb_2d_individual_qps
+from opebet import wealth_lb_1d, wealth_lb_2d, wealth_lb_2d_freegrad, wealth_2d, wealth_lb_2d_individual_qps
 from cs_via_supermartingale import cs_via_supermartingale, cs_via_EWA, cs_via_EWA_debug, cs_via_supermartingale_debug, cs_via_supermartingale_1d_debug
 import pickle
 import numpy as np 
@@ -167,6 +167,9 @@ def bet_2d(data, wmin, wmax, alpha):
     lb, ub = wealth_lb_2d(data, wmin, wmax, alpha)
     return np.array(lb), np.array(ub)
 
+def bet_2d_freegrad(data, wmin, wmax, alpha):
+    lb, ub = wealth_lb_2d_freegrad(data, wmin, wmax, alpha)
+    return np.array(lb), np.array(ub)
 
 def bet_log(data, wmin, wmax, alpha):
     lb, ub = wealth_2d(data, wmin, wmax, alpha)
@@ -286,7 +289,7 @@ def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=Fal
 # NB: a small modification was done to avoid numerical issues with scipy.stats.f.isf when dfd > 23000
 def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
                                  rmin=0, rmax=1, raiseonerr=False):
-    from scipy.special import xlogy
+    #from scipy.special import xlogy
     from scipy.stats import f, chi2
     from math import exp, log
     import numpy as np
@@ -613,7 +616,8 @@ def coverage_experiment():
 def width_experiment(n, wsq, tv):
     res1d = evaluate(f'width1d_{wsq}_{tv}.pkl', bet_1d, alpha=0.05, ndata=n, reps=20, wsq=wsq, tv=tv)
     res2d = evaluate(f'width2d_{wsq}_{tv}.pkl', bet_2d, alpha=0.05, ndata=n, reps=20, wsq=wsq, tv=tv)
-    #reslog = evaluate(f'widthlog_{wsq}_{tv}.pkl', bet_log, alpha=0.05, ndata=n, reps=5, wsq=wsq, tv=tv)
-    #resiqp = evaluate(f'widthiqp_{wsq}_{tv}.pkl', bet_iqp, alpha=0.05, ndata=n, reps=5, wsq=wsq, tv=tv)
+   # res2dfreegrad = evaluate(f'width2d_freegrad_{wsq}_{tv}.pkl', bet_2d_freegrad, alpha=0.05, ndata=n, reps=20, wsq=wsq, tv=tv)
+    reslog = evaluate(f'widthlog_{wsq}_{tv}.pkl', bet_log, alpha=0.05, ndata=n, reps=5, wsq=wsq, tv=tv)
+    resiqp = evaluate(f'widthiqp_{wsq}_{tv}.pkl', bet_iqp, alpha=0.05, ndata=n, reps=5, wsq=wsq, tv=tv)
 
 
