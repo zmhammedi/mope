@@ -1,4 +1,5 @@
 import numpy as np
+import cvxpy as cp
 import time
 
 def rho(x):
@@ -7,7 +8,7 @@ def rho(x):
 
 def bisection_algorithm(f, a, b, y, margin=.00001,direction="right"):
     count = 0
-    while count <= 100:
+    while count <= 15:
         c = (a + b) / 2
         y_c = f(c)
         if abs(y_c - y) < margin:
@@ -23,10 +24,13 @@ def bisection_algorithm(f, a, b, y, margin=.00001,direction="right"):
             else:
                 b = c
         count+=1
-    return float(direction=="right")
+    
+    p = float(direction=="right")
+    
+    return p * b + (1 - p) * a 
 
 
-def linear_search(f, a, b, y, step=.01):
+def linear_search_leftright(f, a, b, y, step=.01):
     s=a
     found=False
     while s<= b and f(s) > y:
@@ -35,9 +39,42 @@ def linear_search(f, a, b, y, step=.01):
         found=True
     return min(s,b), found
 
+def linear_search_rightleft(f, a, b, y, step=.01):
+    s=b
+    found=False
+    while s>= a and f(s) > y:
+        s-=step
+    if f(max(s,a))<=y:
+        found=True
+    return max(s,a), found
 
 
-def supermartingale_value(v,wmax,b0,b1,A0,A1,A2):
+def log_supermartingale_value_slow(v,wmax,b0,b1,A0,A1,A2):
+    # the argument of the exponential
+    mu = 1
+    alpha = 2 # also a free parameter that need be no less than 1 
+    
+    # Build the relevant matrices
+    I = np.identity(2)
+    J = np.array([1,1,1])
+    # TODO check if we need to use wmin below
+    Cv = np.array([[-1,wmax-1,wmax-1],[-v,-v,wmax-v]])
+    
+    S = b0 + b1 * v
+    Q = A0 + A1 * v + A2 * v**2 
+    gamma = cp.Variable(3)
+    Stilde = S + Cv @ gamma
+    Sigma = np.linalg.inv(pow(mu,-2) * alpha * I + alpha*Q) # TODO Make this more efficient via Sherman Morison
+    cost = cp.quad_form(Stilde, Sigma)/2 + rho(alpha)*gamma.T @ J  
+    prob = cp.Problem(cp.Minimize(cost),[0<=gamma])
+    prob.solve()
+    
+    #print(f'gamma={gamma.value}')
+    
+    return prob.value - np.log(np.sqrt(np.linalg.det(I + pow(mu,2)*Q))) #TODO use the matrix determinant lemma for efficiency
+
+
+def log_supermartingale_value(v,wmax,b0,b1,A0,A1,A2):
     # This function is an efficient version of martingal_value. We avoid calling a solver, and consider cases instead.
     mu = 1
     alpha = 2 # also a free parameter that need be no less than 1. TODO change the name
@@ -136,19 +173,23 @@ def supermartingale_value(v,wmax,b0,b1,A0,A1,A2):
                    [-v,-v,wmax-v]])
 
     optval = -1
+    #optgamma = [-1,-1,-1]
     for gamma in gammasols:
         Stilde = S + Cv @ gamma
-        arg = min(20,Stilde.T @ (Sigma @ Stilde)/2 + rho(alpha)*gamma.T @ J)
-        val =  np.exp(arg)/Den
+        arg = Stilde.T @ (Sigma @ Stilde)/2 + rho(alpha)*gamma.T @ J
+        val =  arg - np.log(Den)
         if optval<0 or optval>val:
             optval=val
-        
+            #optgamma = gamma
+    
+    #print(f'gamma={optgamma}')
+    
     return optval
 
 
-def supermartingale_value_1d(v,wmax,b0,b1,A0,A1,A2):
+def log_supermartingale_value_1d(v,wmax,b0,b1,A0,A1,A2):
     # This function is an efficient version of martingal_value. We avoid calling a solver, and consider cases instead.
-    mu = 100
+    mu = 1
     alpha = 2 # also a free parameter that need be no less than 1. TODO change the name
     
     gammasols = [np.zeros(3)] # Adding the all zeros feasable solution
@@ -206,8 +247,8 @@ def supermartingale_value_1d(v,wmax,b0,b1,A0,A1,A2):
     optval = -1
     for gamma in gammasols:
         Stilde = S + Cv @ gamma
-        arg = min(20,Stilde * Sigma * Stilde/2 + rho(alpha)*gamma.T @ J)
-        val =  np.exp(arg)/Den
+        arg = Stilde * Sigma * Stilde/2 + rho(alpha)*gamma.T @ J
+        val =  arg - np.log(Den)
         if optval<0 or optval>val:
             optval=val
         
@@ -338,27 +379,6 @@ def martingale_value_lowerbound(v,wmax,b0,b1,A0,A1,A2,t):
     
 #     return np.exp(prob.value) #Denominator equal to 1
 
-# def supermartingale_value_slow(v,wmax,b0,b1,A0,A1,A2):
-#     # the argument of the exponential
-#     mu = 1
-#     alpha = 2 # also a free parameter that need be no less than 1 
-    
-#     # Build the relevant matrices
-#     I = np.identity(2)
-#     J = np.array([1,1,1])
-#     # TODO check if we need to use wmin below
-#     Cv = np.array([[-1,wmax-1,wmax-1],[-v,-v,wmax-v]])
-    
-#     S = b0 + b1 * v
-#     Q = A0 + A1 * v + A2 * v**2 
-#     gamma = cp.Variable(3)
-#     Stilde = S + Cv @ gamma
-#     Sigma = np.linalg.inv(pow(mu,-2) * alpha * I + alpha*Q) # TODO Make this more efficient via Sherman Morison
-#     cost = cp.quad_form(Stilde, Sigma)/2 + rho(alpha)*gamma.T @ J  
-#     prob = cp.Problem(cp.Minimize(cost),[0<=gamma])
-#     prob.solve()
-    
-#     return np.exp(prob.value)/np.sqrt(np.linalg.det(I + pow(mu,2)*Q)) #TODO use the matrix determinant lemma for efficiency
 
 
 def cs_via_supermartingale(data, wmin, wmax, alpha):
@@ -375,6 +395,8 @@ def cs_via_supermartingale(data, wmin, wmax, alpha):
 
     lb = np.zeros(T)
     ub = np.zeros(T)
+    prev_lb = 0.
+    prev_ub = 1.
     for t in range(T):
         wt = data[t,0] 
         rt = data[t,1]
@@ -386,19 +408,80 @@ def cs_via_supermartingale(data, wmin, wmax, alpha):
                [-(wt-1),-2 * wt * rt]]
         A2 += [[0,0],[0,1]]
         
-        martval = lambda v: supermartingale_value(v,wmax,b0,b1,A0,A1,A2)        
+        logmartval = lambda v: log_supermartingale_value(v,wmax,b0,b1,A0,A1,A2)        
         # Root finding
-        tmpv, found = linear_search(martval,0,1,1/(2 * alpha),step=0.001)
-        #tmpv = bisection_algorithm(martval,0,1,1/(2 * alpha),margin=0.000001)
-        if not found:
-            lb[t]=0.
-            ub[t]=1.
-            continue
+        stepsize = (prev_ub-prev_lb) * 0.01
+        tmpv_lb, found_lb = linear_search_leftright(logmartval,prev_lb,prev_ub,-np.log(alpha),step=stepsize)
+        tmpv_ub, found_ub = linear_search_rightleft(logmartval,prev_lb,prev_ub,-np.log(alpha),step=stepsize)
         
-        lb[t] = bisection_algorithm(martval,0,tmpv,1/alpha,margin=0.000001,direction="left")
-        ub[t] = bisection_algorithm(martval,tmpv,1,1/alpha,margin=0.000001)
+        if not found_lb:
+            lb[t]=prev_lb
+        else:
+            margin_lb = (tmpv_lb - prev_lb)*.01
+            lb[t] = bisection_algorithm(logmartval,prev_lb,tmpv_lb,-np.log(alpha),margin=margin_lb,direction="left")
+            prev_lb = lb[t]
             
+        if not found_ub:
+            lb[t]=prev_ub
+        else:
+            margin_ub = (prev_ub - tmpv_ub)*.01
+            ub[t] = bisection_algorithm(logmartval,tmpv_ub,prev_ub,-np.log(alpha),margin=margin_ub)
+            prev_ub = ub[t]
+    
     return lb, ub
+
+
+
+def cs_via_supermartingale_1d(data, wmin, wmax, alpha):
+    # Assume data is of type np.array((t,2)), where (w,r)=(wr[:,0],wr[:,1]).
+    # TODO we want to allow for different policies eventually
+    T = len(data)
+    
+    # Initialize
+    b0 = 0
+    b1 = 0
+    A0 = 0
+    A1 = 0
+    A2 = 0
+
+    lb = np.zeros(T)
+    ub = np.zeros(T)
+    prev_lb = 0.
+    prev_ub = 1.
+    for t in range(T):
+        wt = data[t,0] 
+        rt = data[t,1]
+        b0 += wt*rt
+        b1 += -1
+        A0 += (wt * rt)**2
+        A1 += -2 * wt * rt
+        A2 += 1
+    
+        logmartval = lambda v: log_supermartingale_value_1d(v,wmax,b0,b1,A0,A1,A2)        
+        # Root finding
+        stepsize = (prev_ub-prev_lb) * 0.01
+        tmpv_lb, found_lb = linear_search_leftright(logmartval,prev_lb,prev_ub,-np.log(alpha),step=stepsize)
+        tmpv_ub, found_ub = linear_search_rightleft(logmartval,prev_lb,prev_ub,-np.log(alpha),step=stepsize)
+        
+        if not found_lb:
+            lb[t]=prev_lb
+        else:
+            margin_lb = (tmpv_lb - prev_lb)*.01
+            lb[t] = bisection_algorithm(logmartval,prev_lb,tmpv_lb,-np.log(alpha),margin=margin_lb,direction="left")
+            prev_lb = lb[t]
+            
+        if not found_ub:
+            lb[t]=prev_ub
+        else:
+            margin_ub = (prev_ub - tmpv_ub)*.01
+            ub[t] = bisection_algorithm(logmartval,tmpv_ub,prev_ub,-np.log(alpha),margin=margin_ub)
+            prev_ub = ub[t]
+            
+
+    return lb, ub
+
+
+
 
 
 def cs_via_supermartingale_debug(data, wmin, wmax, alpha):
@@ -413,8 +496,8 @@ def cs_via_supermartingale_debug(data, wmin, wmax, alpha):
     A1 = np.zeros((2,2))
     A2 = np.zeros((2,2))
 
-    w = data[:,0] 
-    r = data[:,1]
+    w = data[:T,0] 
+    r = data[:T,1]
     b0 = np.array([np.sum(w)-T,np.dot(w,r)])
     b1 = np.array([0,-T])
     A0 = np.array([[np.dot(w-1, w-1), np.dot(w-1, w*r)],
@@ -423,10 +506,10 @@ def cs_via_supermartingale_debug(data, wmin, wmax, alpha):
                    [-np.sum(w)+T,-2 * np.dot(w,r)]])
     A2 = np.array([[0,0],[0,T]])
     #print(f'b0={b0},\nb1={b1},\nA0={A0},\nA1={A1},\nA2={A2}\n\n')
-    
-    martval = lambda v: supermartingale_value(v,wmax,b0,b1,A0,A1,A2)        
+
+    logmartval = lambda v: log_supermartingale_value(v,wmax,b0,b1,A0,A1,A2)        
     # Root finding
-    tmpv, found = linear_search(martval,0,1,1/(2 * alpha),step=0.001)
+    tmpv, found = linear_search_leftright(logmartval,0,1,-np.log(2 * alpha),step=0.001)
     #print(tmpv)
     #tmpv = bisection_algorithm(martval,0,1,1/(2 * alpha),margin=0.000001)
     if not found:
@@ -434,8 +517,8 @@ def cs_via_supermartingale_debug(data, wmin, wmax, alpha):
         #print('tmpv=0')
         return np.array([0.] * T), np.array([1.] * T)
 
-    lb = bisection_algorithm(martval,0,tmpv,1/alpha,margin=0.000001,direction="left")
-    ub = bisection_algorithm(martval,tmpv,1,1/alpha,margin=0.000001)
+    lb = bisection_algorithm(logmartval,0,tmpv,-np.log(alpha),margin=0.000001,direction="left")
+    ub = bisection_algorithm(logmartval,tmpv,1,-np.log(alpha),margin=0.000001)
     #print(f'tmpv not eq 1: lb={lb}, up={ub}\n')    
     return np.array([float(lb)] * T), np.array([float(ub)] * T)
 
@@ -461,9 +544,9 @@ def cs_via_supermartingale_1d_debug(data, wmin, wmax, alpha):
     A2 = T
     #print(f'b0={b0},\nb1={b1},\nA0={A0},\nA1={A1},\nA2={A2}\n\n')
     
-    martval = lambda v: supermartingale_value_1d(v,wmax,b0,b1,A0,A1,A2)        
+    martval = lambda v: log_supermartingale_value_1d(v,wmax,b0,b1,A0,A1,A2)        
     # Root finding
-    tmpv, found = linear_search(martval,0,1,1/(2 * alpha),step=0.001)
+    tmpv, found = linear_search_leftright(martval,0,1,1/(2 * alpha),step=0.001)
     #print(tmpv)
     #tmpv = bisection_algorithm(martval,0,1,1/(2 * alpha),margin=0.000001)
     if not found:
@@ -505,7 +588,7 @@ def cs_via_EWA(data, wmin, wmax, alpha):
         martval = lambda v: martingale_value_lowerbound(v,wmax,b0,b1,A0,A1,A2,t)
        
         # Root finding
-        tmpv, found = linear_search(martval,0,1,1/(2 * alpha),step=0.001)
+        tmpv, found = linear_search_leftright(martval,0,1,1/(2 * alpha),step=0.001)
         #tmpv = bisection_algorithm(martval,0,1,1/(2 * alpha),margin=0.000001)
         if not found:
             #print(f'b0={b0},\nb1={b1},\nA0={A0},\nA1={A1},\nA2={A2}\n\n')
@@ -548,8 +631,8 @@ def cs_via_EWA_debug(data, wmin, wmax, alpha):
     martval = lambda v: martingale_value_lowerbound(v,wmax,b0,b1,A0,A1,A2,T)
         
     # Root finding
-    t0 = time.time()
-    tmpv, found = linear_search(martval,0,1,1/(2 * alpha),step=0.001)
+    #t0 = time.time()
+    tmpv, found = linear_search_leftright(martval,0,1,1/(2 * alpha),step=0.001)
     #tmpv = bisection_algorithm(martval,0,1,1/(2 * alpha),margin=0.000001)
     if not found:
         #print(f'b0={b0},\nb1={b1},\nA0={A0},\nA1={A1},\nA2={A2}\n\n')

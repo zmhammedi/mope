@@ -1,6 +1,6 @@
 import environments.ControlledRangeVariance
 from opebet import wealth_lb_1d, wealth_lb_2d, wealth_lb_2d_freegrad, wealth_2d, wealth_lb_2d_individual_qps
-from cs_via_supermartingale import cs_via_supermartingale, cs_via_EWA, cs_via_EWA_debug, cs_via_supermartingale_debug, cs_via_supermartingale_1d_debug
+from cs_via_supermartingale import cs_via_supermartingale, cs_via_EWA, cs_via_EWA_debug, cs_via_supermartingale_debug, cs_via_supermartingale_1d
 import pickle
 import numpy as np 
 import pandas as pd
